@@ -233,6 +233,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   .btn svg { width: 14px; height: 14px; stroke-width: 2; }
 
+  /* ---------- Inline edit ---------- */
+  .inline-edit {
+    height: 26px;
+    padding: 0 6px;
+    font-size: 12px;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 4px;
+    color: inherit;
+    cursor: pointer;
+    max-width: 130px;
+  }
+  .inline-edit:hover { border-color: #E5E7EB; background: #F9FAFB; }
+  .inline-edit:focus { outline: none; border-color: #2563EB; background: #fff; }
+
   /* ---------- Table ---------- */
   .table-wrap {
     flex: 1;
@@ -1622,9 +1637,9 @@ function renderISO13485() {
       html += `
         <tr>
           <td class="col-company"><div class="truncate" title="${escapeHtml(a.company)}">${escapeHtml(a.company)}</div></td>
-          <td>${auditTypeBadge(a.audit_type)}</td>
+          <td>${inlineAuditTypeSelect('13485', a.id, a.audit_type)}</td>
           <td class="col-narrow">${fmtMonth(a.audit_month)}</td>
-          <td>${fmtDate(a.audit_date)}</td>
+          <td>${inlineDateInput('13485', a.id, 'audit_date', a.audit_date)}</td>
           <td class="col-num">${fmtMoney(a.cost)}</td>
           <td class="col-num">${prev ? fmtMoney(prev.cost) : '<span class="text-muted">-</span>'}</td>
           <td>${fmtDate(a.payment_date)}</td>
@@ -1694,7 +1709,7 @@ function renderCEMDR() {
           <td>${certBadge(a.cert_type)}</td>
           <td><div class="truncate" title="${escapeHtml(a.product || '')}">${escapeHtml((a.product || '').split('\n')[0])}</div></td>
           <td>${fmtText(a.grade)}</td>
-          <td>${auditTypeBadge(a.audit_type)}</td>
+          <td>${inlineAuditTypeSelect('cemdr', a.id, a.audit_type)}</td>
           <td class="col-narrow">${fmtMonth(a.audit_month)}</td>
           <td class="col-num">${fmtMoney(a.cost)}</td>
           <td class="col-num">${prev ? fmtMoney(prev.cost) : '<span class="text-muted">-</span>'}</td>
@@ -2179,6 +2194,41 @@ async function saveAudit(certCategory, id) {
   let msg = id ? '심사 정보가 저장되었습니다' : '새 심사가 추가되었습니다';
   if (rolledOver) msg += ` · ${item.year + 1}년 정기심사가 자동 생성되었습니다`;
   toast(msg, 'success');
+}
+
+// 인라인 편집: 셀 안에서 직접 수정한 값을 DB에 즉시 반영
+async function updateAuditField(certCategory, id, field, value) {
+  const store = certCategory === '13485' ? 'audits_13485' : 'audits_cemdr';
+  const list = await dbGetAll(store);
+  const item = list.find(a => a.id === id);
+  if (!item) return;
+
+  const prevPaymentStatus = item.payment_status;
+  item[field] = value === '' ? null : value;
+  await dbPut(store, item);
+
+  // 입금상태를 인라인으로 바꾸는 경우에도 자동 이관이 동작하도록 동일 로직 적용
+  let rolledOver = false;
+  if (field === 'payment_status' && value === '입금완료' && prevPaymentStatus !== '입금완료') {
+    rolledOver = await rolloverToNextYear(store, item);
+  }
+
+  await loadState();
+  renderAll();
+  if (rolledOver) toast(`${item.year + 1}년 정기심사가 자동 생성되었습니다`, 'success');
+}
+
+function inlineAuditTypeSelect(certCategory, id, current) {
+  const opts = ['', '최초', '사후1', '사후2', '갱신'];
+  const options = opts.map(v => {
+    const label = v === '' ? '-' : (v === '최초' ? '최초 (CA)' : v === '사후1' ? '사후1 (1SA)' : v === '사후2' ? '사후2 (2SA)' : v === '갱신' ? '갱신 (Re)' : v);
+    return `<option value="${v}" ${(current || '') === v ? 'selected' : ''}>${label}</option>`;
+  }).join('');
+  return `<select class="inline-edit" onchange="updateAuditField('${certCategory}', ${id}, 'audit_type', this.value)">${options}</select>`;
+}
+
+function inlineDateInput(certCategory, id, field, current) {
+  return `<input type="date" class="inline-edit" value="${current || ''}" onchange="updateAuditField('${certCategory}', ${id}, '${field}', this.value)">`;
 }
 
 // 심사 유형 사이클: 최초/갱신 → 사후1 → 사후2 → 갱신

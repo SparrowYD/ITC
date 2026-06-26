@@ -2469,17 +2469,27 @@ async function updateAuditMonth(certCategory, id, value) {
   renderAll();
 }
 
+function formatNumberKR(v) {
+  if (v === '' || v === null || v === undefined || isNaN(v)) return '';
+  const n = Number(v);
+  // 정수면 소수점 없이, 소수면 그대로 표시 (천 단위 쉼표 포함)
+  return Number.isInteger(n) ? n.toLocaleString('en-US') : n.toLocaleString('en-US', { maximumFractionDigits: 8 });
+}
+
 function inlineCostInput(certCategory, id, cost) {
-  const amount = (cost && cost.amount !== null && cost.amount !== undefined) ? cost.amount : '';
+  const raw = (cost && cost.amount !== null && cost.amount !== undefined) ? cost.amount : '';
+  const display = formatNumberKR(raw);
   const currency = (cost && cost.currency) || 'KRW';
   const currencies = ['KRW', 'USD', 'EUR', 'CNY'];
   const options = currencies.map(c => `<option value="${c}" ${currency === c ? 'selected' : ''}>${c}</option>`).join('');
   return `
     <span class="inline-cost">
-      <input type="number" step="any" class="inline-edit inline-cost-amount" value="${amount}" placeholder="금액"
-        onchange="updateAuditCost('${certCategory}', ${id}, this.value, this.parentNode.querySelector('select').value)">
+      <input type="text" inputmode="decimal" class="inline-edit inline-cost-amount" value="${display}" placeholder="금액"
+        oninput="this.value = this.value.replace(/[^0-9.\\-]/g, '')"
+        onfocus="this.value = this.value.replace(/,/g, '')"
+        onblur="this.value = formatNumberKR(this.value); updateAuditCost('${certCategory}', ${id}, this.value.replace(/,/g, ''), this.parentNode.querySelector('select').value)">
       <select class="inline-edit inline-cost-currency"
-        onchange="updateAuditCost('${certCategory}', ${id}, this.parentNode.querySelector('input').value, this.value)">${options}</select>
+        onchange="updateAuditCost('${certCategory}', ${id}, this.parentNode.querySelector('input').value.replace(/,/g, ''), this.value)">${options}</select>
     </span>
   `;
 }

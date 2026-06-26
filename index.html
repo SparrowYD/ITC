@@ -507,6 +507,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .stat:first-child { padding-left: 0; }
   .stat-label { font-size: 11px; color: #6B7280; font-weight: 500; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.03em; }
   .stat-value { font-size: 16px; font-weight: 700; color: #111827; font-variant-numeric: tabular-nums; }
+  .stat-multi { font-size: 13px; line-height: 1.4; }
+  .stat-multi > div { white-space: nowrap; }
   .stat-value.muted { color: #9CA3AF; font-weight: 500; }
 
   /* ---------- Settings / Data management ---------- */
@@ -1892,16 +1894,29 @@ function renderStats(tab, items) {
     const done = items.filter(a => a.status === '완료' || a.payment_status === '입금완료').length;
     const pending = items.filter(a => a.payment_status === '미입금' || a.status === '예정' || a.status === '진행').length;
     const giveup = items.filter(a => a.status === '포기' || a.status === '거절' || a.payment_status === '포기').length;
-    
-    // Sum KRW costs
-    let krwSum = 0, paidSum = 0;
+
+    // 통화별 예상매출/입금완료액 집계
+    const expected = {}; // currency -> sum
+    const paid = {};
     items.forEach(a => {
-      if (a.cost && a.cost.currency === 'KRW' && typeof a.cost.amount === 'number') {
-        krwSum += a.cost.amount;
-        if (a.payment_status === '입금완료') paidSum += a.cost.amount;
+      if (!a.cost || typeof a.cost.amount !== 'number' || !a.cost.currency) return;
+      const cur = a.cost.currency;
+      expected[cur] = (expected[cur] || 0) + a.cost.amount;
+      if (a.payment_status === '입금완료') {
+        paid[cur] = (paid[cur] || 0) + a.cost.amount;
       }
     });
-    
+
+    function fmtCur(cur, n) {
+      if (cur === 'KRW') {
+        return n >= 10000 ? (n / 10000).toLocaleString('ko-KR', { maximumFractionDigits: 1 }) + '만원' : n.toLocaleString('ko-KR');
+      }
+      return n.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' ' + cur;
+    }
+    const order = ['KRW', 'USD', 'EUR', 'CNY'];
+    const expHtml = order.filter(c => expected[c]).map(c => `<div>${fmtCur(c, expected[c])}</div>`).join('') || '-';
+    const paidHtml = order.filter(c => paid[c]).map(c => `<div>${fmtCur(c, paid[c])}</div>`).join('') || '-';
+
     el.innerHTML = `
       <div class="stat">
         <div class="stat-label">${state.globalYear}년 건수</div>
@@ -1920,12 +1935,12 @@ function renderStats(tab, items) {
         <div class="stat-value muted">${giveup}</div>
       </div>
       <div class="stat">
-        <div class="stat-label">예상 매출 (원화)</div>
-        <div class="stat-value">${krwSum > 0 ? (krwSum / 10000).toLocaleString('ko-KR') + '만원' : '-'}</div>
+        <div class="stat-label">예상 매출 (통화별)</div>
+        <div class="stat-value stat-multi">${expHtml}</div>
       </div>
       <div class="stat">
-        <div class="stat-label">입금 완료액 (원화)</div>
-        <div class="stat-value" style="color:#059669">${paidSum > 0 ? (paidSum / 10000).toLocaleString('ko-KR') + '만원' : '-'}</div>
+        <div class="stat-label">입금 완료액 (통화별)</div>
+        <div class="stat-value stat-multi" style="color:#059669">${paidHtml}</div>
       </div>
     `;
   } else if (tab === 'inquiries') {
@@ -1963,12 +1978,40 @@ function renderStats(tab, items) {
    RENDER ALL
    ================================================================= */
 function renderAll() {
+  // 인라인 편집 중인 입력 위치를 기억하고, 재렌더 후 같은 위치에 포커스를 복원
+  const focusInfo = captureFocusInfo();
   refreshYearSelector();
   renderISO13485();
   renderCEMDR();
   renderMDD();
   renderInquiries();
   renderDataSummary();
+  restoreFocus(focusInfo);
+}
+
+function captureFocusInfo() {
+  const el = document.activeElement;
+  if (!el || !el.closest) return null;
+  const tr = el.closest('tr[data-id]');
+  const td = el.closest('td');
+  if (!tr || !td) return null;
+  const tds = Array.from(tr.children);
+  const cellIdx = tds.indexOf(td);
+  const inputs = Array.from(td.querySelectorAll('input,select,textarea'));
+  const inputIdx = inputs.indexOf(el);
+  if (cellIdx < 0 || inputIdx < 0) return null;
+  return { id: tr.dataset.id, cat: tr.dataset.cat, cellIdx, inputIdx };
+}
+
+function restoreFocus(info) {
+  if (!info) return;
+  const tr = document.querySelector(`tr[data-id="${info.id}"][data-cat="${info.cat}"]`);
+  if (!tr) return;
+  const cell = tr.children[info.cellIdx];
+  if (!cell) return;
+  const inputs = cell.querySelectorAll('input,select,textarea');
+  const target = inputs[info.inputIdx];
+  if (target) target.focus();
 }
 
 function renderMDD() {

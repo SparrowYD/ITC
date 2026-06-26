@@ -252,6 +252,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .inline-cost-currency { max-width: 60px; }
   .inline-text { min-width: 110px; max-width: 160px; width: 100%; }
   .inline-month { max-width: 70px; }
+  .prev-stack { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+  .prev-stack .inline-cost-amount { max-width: 80px; }
+  .prev-stack .inline-edit { font-size: 11px; }
 
   /* ---------- Table ---------- */
   .table-wrap {
@@ -1671,7 +1674,7 @@ function renderISO13485() {
         <th class="col-narrow">월</th>
         <th>심사일자</th>
         <th class="col-num">${state.globalYear} 비용</th>
-        <th class="col-num">${state.globalYear - 1} 비용</th>
+        <th class="col-num">${state.globalYear - 1} 비용/입금</th>
         <th>입금일</th>
         <th>입금상태</th>
         <th>올해 심사원</th>
@@ -1684,7 +1687,7 @@ function renderISO13485() {
     </thead>
     <tbody>
   `;
-  
+
   if (audits.length === 0) {
     html += `<tr><td colspan="14"><div class="empty">
       <div class="empty-icon">📋</div>
@@ -1702,7 +1705,7 @@ function renderISO13485() {
           <td class="col-narrow">${inlineMonthSelect('13485', a.id, a.audit_month)}</td>
           <td>${inlineDateInput('13485', a.id, 'audit_date', a.audit_date)}</td>
           <td class="col-num">${inlineCostInput('13485', a.id, a.cost)}</td>
-          <td class="col-num">${prev ? inlineCostInput('13485', prev.id, prev.cost) : '<span class="text-muted">-</span>'}</td>
+          <td class="col-num">${prev ? inlinePrevYearGroup('13485', prev) : '<span class="text-muted">-</span>'}</td>
           <td>${inlineDateInput('13485', a.id, 'payment_date', a.payment_date)}</td>
           <td>${inlinePaymentStatusSelect('13485', a.id, a.payment_status)}</td>
           <td>${inlineTextInput('13485', a.id, 'this_year_auditor', a.this_year_auditor, '심사원')}</td>
@@ -1741,7 +1744,7 @@ function renderCEMDR() {
         <th>심사유형</th>
         <th class="col-narrow">월</th>
         <th class="col-num">${state.globalYear} 비용</th>
-        <th class="col-num">${state.globalYear - 1} 비용</th>
+        <th class="col-num">${state.globalYear - 1} 비용/입금</th>
         <th>입금일</th>
         <th>올해 심사원</th>
         <th>차년도 심사원</th>
@@ -1773,7 +1776,7 @@ function renderCEMDR() {
           <td>${inlineAuditTypeSelect('cemdr', a.id, a.audit_type)}</td>
           <td class="col-narrow">${inlineMonthSelect('cemdr', a.id, a.audit_month)}</td>
           <td class="col-num">${inlineCostInput('cemdr', a.id, a.cost)}</td>
-          <td class="col-num">${prev ? inlineCostInput('cemdr', prev.id, prev.cost) : '<span class="text-muted">-</span>'}</td>
+          <td class="col-num">${prev ? inlinePrevYearGroup('cemdr', prev) : '<span class="text-muted">-</span>'}</td>
           <td>${inlineDateInput('cemdr', a.id, 'payment_date', a.payment_date)}</td>
           <td>${inlineTextInput('cemdr', a.id, 'this_year_auditor', a.this_year_auditor, '심사원')}</td>
           <td>${inlineTextInput('cemdr', a.id, 'next_year_auditor', a.next_year_auditor, '심사원')}</td>
@@ -2442,6 +2445,17 @@ function inlineMonthSelect(certCategory, id, current) {
     options += `<option value="${m}" ${current == m ? 'selected' : ''}>${m}월</option>`;
   }
   return `<select class="inline-edit inline-month" onchange="updateAuditMonth('${certCategory}', ${id}, this.value)">${options}</select>`;
+}
+
+function inlinePrevYearGroup(certCategory, prev) {
+  // 전년도 셀: 비용 + 입금일 + 입금상태를 한 칸에 컴팩트하게 인라인 편집
+  return `
+    <div class="prev-stack">
+      ${inlineCostInput(certCategory, prev.id, prev.cost)}
+      ${inlineDateInput(certCategory, prev.id, 'payment_date', prev.payment_date)}
+      ${inlinePaymentStatusSelect(certCategory, prev.id, prev.payment_status)}
+    </div>
+  `;
 }
 
 async function updateAuditMonth(certCategory, id, value) {

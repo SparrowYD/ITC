@@ -580,6 +580,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .checkbox-wrap { display: flex; align-items: center; gap: 6px; }
   .checkbox-wrap input { width: 14px; height: 14px; }
   
+  .file-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 14px;
+    background: #F3F4F6; color: #374151; font-size: 12px; font-weight: 600;
+    margin-right: 8px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .file-dot { width: 8px; height: 8px; border-radius: 50%; background: #9CA3AF; flex-shrink: 0; }
+  .file-status.connected { background: #DCFCE7; color: #166534; }
+  .file-status.connected .file-dot { background: #16A34A; box-shadow: 0 0 0 3px rgba(34,197,94,0.2); }
+  .file-status.needs-permission { background: #FEF3C7; color: #92400E; cursor: pointer; }
+  .file-status.needs-permission .file-dot { background: #D97706; }
+
   .help-tip {
     margin-left: 6px;
     color: #9CA3AF;
@@ -600,6 +612,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     </div>
     <div class="header-spacer"></div>
     <div class="header-actions">
+      <div class="file-status" id="fileStatus" title="현재 연결된 데이터 파일">
+        <span class="file-dot" id="fileDot"></span>
+        <span id="fileStatusText">로컬 저장</span>
+      </div>
+      <button class="btn btn-sm" onclick="pickDataFile('open')" title="기존 데이터 파일을 열어 연결">📂 파일 불러오기</button>
+      <button class="btn btn-sm" onclick="pickDataFile('save')" title="새 파일을 만들어 자동 저장 시작">💾 파일로 저장</button>
+      <button class="btn btn-sm" onclick="disconnectFile()" title="파일 연결 해제" id="fileDisconnectBtn" style="display:none;">✕</button>
+      <span style="width:8px;"></span>
       <label style="font-size: 12px; color: #6B7280; font-weight: 500; margin-right: 4px;">기준 연도</label>
       <select class="filter" id="globalYear" style="min-width: 90px;"></select>
       <button class="btn btn-sm" title="연도 추가" onclick="addYear()" style="margin-left:4px;">＋</button>
@@ -3161,6 +3181,177 @@ document.addEventListener('keydown', (e) => {
 /* =================================================================
    INIT
    ================================================================= */
+/* =================================================================
+   FILE SYSTEM ACCESS API: 로컬 파일에 직접 저장/불러오기
+   ================================================================= */
+let fileHandle = null;
+let fileSyncTimer = null;
+const FS_SUPPORTED = ('showOpenFilePicker' in window) && ('showSaveFilePicker' in window);
+
+async function ensurePermission(handle, mode) {
+  try {
+    const opts = { mode };
+    if ((await handle.queryPermission(opts)) === 'granted') return true;
+    if ((await handle.requestPermission(opts)) === 'granted') return true;
+  } catch (e) { console.error(e); }
+  return false;
+}
+
+async function pickDataFile(action) {
+  if (!FS_SUPPORTED) {
+    toast('이 브라우저는 파일 직접 저장을 지원하지 않습니다. 크롬/엣지에서 사용하세요.', 'error');
+    return;
+  }
+  try {
+    if (action === 'open') {
+      const [h] = await window.showOpenFilePicker({
+        types: [{ description: 'ITC ASIA 데이터', accept: { 'application/json': ['.json'] } }]
+      });
+      fileHandle = h;
+      await ensurePermission(fileHandle, 'readwrite');
+      await loadFromFile();
+      toast(`파일 연결됨: ${h.name}. 이제 모든 변경이 자동 저장됩니다.`, 'success');
+    } else {
+      const h = await window.showSaveFilePicker({
+        suggestedName: 'itc_asia_data.json',
+        types: [{ description: 'ITC ASIA 데이터', accept: { 'application/json': ['.json'] } }]
+      });
+      fileHandle = h;
+      await writeToFile(true);
+      toast(`파일 생성됨: ${h.name}. 이제 모든 변경이 자동 저장됩니다.`, 'success');
+    }
+    try { await dbSetMeta('fileHandle', fileHandle); } catch (e) {}
+    updateFileStatus('connected');
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    console.error(e);
+    toast('파일 작업 중 오류가 발생했습니다', 'error');
+  }
+}
+
+async function writeToFile(force) {
+  if (!fileHandle) return;
+  if (!force) {
+    const ok = await ensurePermission(fileHandle, 'readwrite');
+    if (!ok) { updateFileStatus('needs-permission'); return; }
+  }
+  const data = {
+    schema: 'itc-asia-erp/v1',
+    savedAt: new Date().toISOString(),
+    audits_13485: await dbGetAll('audits_13485'),
+    audits_cemdr: await dbGetAll('audits_cemdr'),
+    inquiries: await dbGetAll('inquiries')
+  };
+  try {
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(data, null, 2));
+    await writable.close();
+  } catch (e) {
+    console.error('파일 저장 실패', e);
+    toast('파일 저장 실패: ' + e.message, 'error');
+  }
+}
+
+async function loadFromFile() {
+  if (!fileHandle) return;
+  const ok = await ensurePermission(fileHandle, 'read');
+  if (!ok) { updateFileStatus('needs-permission'); return; }
+  try {
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    if (!text.trim()) { updateFileStatus('connected'); return; }
+    const data = JSON.parse(text);
+    for (const s of ['audits_13485', 'audits_cemdr', 'inquiries']) {
+      await dbClear(s);
+      for (const item of (data[s] || [])) {
+        const copy = Object.assign({}, item);
+        await dbPut(s, copy);
+      }
+    }
+    await loadState();
+    renderAll();
+  } catch (e) {
+    console.error(e);
+    toast('파일을 읽을 수 없습니다: ' + e.message, 'error');
+  }
+}
+
+function scheduleFileSync() {
+  if (!fileHandle) return;
+  clearTimeout(fileSyncTimer);
+  fileSyncTimer = setTimeout(() => writeToFile(false), 400);
+}
+
+async function disconnectFile() {
+  if (!confirm('파일 연결을 해제하시겠습니까? 데이터는 브라우저에 남아있습니다.')) return;
+  fileHandle = null;
+  try { await dbSetMeta('fileHandle', null); } catch (e) {}
+  updateFileStatus('local');
+  toast('파일 연결이 해제되었습니다 (로컬 저장으로 전환)', 'success');
+}
+
+function updateFileStatus(state) {
+  const el = document.getElementById('fileStatus');
+  const text = document.getElementById('fileStatusText');
+  const disconnect = document.getElementById('fileDisconnectBtn');
+  if (!el) return;
+  el.classList.remove('connected', 'needs-permission');
+  if (state === 'connected' && fileHandle) {
+    el.classList.add('connected');
+    text.textContent = '📄 ' + fileHandle.name;
+    disconnect.style.display = '';
+    el.onclick = null;
+  } else if (state === 'needs-permission' && fileHandle) {
+    el.classList.add('needs-permission');
+    text.textContent = '⚠ 권한 필요: ' + fileHandle.name;
+    disconnect.style.display = '';
+    el.onclick = async () => {
+      const ok = await ensurePermission(fileHandle, 'readwrite');
+      if (ok) { await loadFromFile(); updateFileStatus('connected'); }
+    };
+  } else {
+    text.textContent = FS_SUPPORTED ? '로컬 저장 (파일 미연결)' : '로컬 저장 (브라우저 미지원)';
+    disconnect.style.display = 'none';
+    el.onclick = null;
+  }
+}
+
+async function tryRestoreFileHandle() {
+  if (!FS_SUPPORTED) return;
+  try {
+    const h = await dbGetMeta('fileHandle');
+    if (!h) return;
+    fileHandle = h;
+    const ok = (await h.queryPermission({ mode: 'readwrite' })) === 'granted';
+    if (ok) {
+      await loadFromFile();
+      updateFileStatus('connected');
+    } else {
+      updateFileStatus('needs-permission');
+    }
+  } catch (e) { console.error(e); }
+}
+
+// 모든 DB 쓰기/삭제/클리어 후 파일 자동 저장을 트리거하도록 래핑
+const _origDbPut = dbPut;
+const _origDbDelete = dbDelete;
+const _origDbClear = dbClear;
+dbPut = async function(store, item) {
+  const r = await _origDbPut(store, item);
+  if (store !== 'meta') scheduleFileSync();
+  return r;
+};
+dbDelete = async function(store, id) {
+  const r = await _origDbDelete(store, id);
+  if (store !== 'meta') scheduleFileSync();
+  return r;
+};
+dbClear = async function(store) {
+  const r = await _origDbClear(store);
+  if (store !== 'meta') scheduleFileSync();
+  return r;
+};
+
 (async function init() {
   await openDB();
   await seedIfEmpty();
@@ -3168,6 +3359,8 @@ document.addEventListener('keydown', (e) => {
   initYearSelector();
   wireFilters();
   renderAll();
+  updateFileStatus('local');
+  await tryRestoreFileHandle();
 })();
 </script>
 

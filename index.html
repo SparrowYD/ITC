@@ -247,6 +247,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   .inline-edit:hover { border-color: #E5E7EB; background: #F9FAFB; }
   .inline-edit:focus { outline: none; border-color: #2563EB; background: #fff; }
+  .inline-cost { display: inline-flex; gap: 2px; align-items: center; }
+  .inline-cost-amount { max-width: 90px; text-align: right; }
+  .inline-cost-currency { max-width: 60px; }
 
   /* ---------- Table ---------- */
   .table-wrap {
@@ -1640,7 +1643,7 @@ function renderISO13485() {
           <td>${inlineAuditTypeSelect('13485', a.id, a.audit_type)}</td>
           <td class="col-narrow">${fmtMonth(a.audit_month)}</td>
           <td>${inlineDateInput('13485', a.id, 'audit_date', a.audit_date)}</td>
-          <td class="col-num">${fmtMoney(a.cost)}</td>
+          <td class="col-num">${inlineCostInput('13485', a.id, a.cost)}</td>
           <td class="col-num">${prev ? fmtMoney(prev.cost) : '<span class="text-muted">-</span>'}</td>
           <td>${fmtDate(a.payment_date)}</td>
           <td>${a.payment_status ? statusBadge(a.payment_status) : '<span class="text-muted">-</span>'}</td>
@@ -1711,7 +1714,7 @@ function renderCEMDR() {
           <td>${fmtText(a.grade)}</td>
           <td>${inlineAuditTypeSelect('cemdr', a.id, a.audit_type)}</td>
           <td class="col-narrow">${fmtMonth(a.audit_month)}</td>
-          <td class="col-num">${fmtMoney(a.cost)}</td>
+          <td class="col-num">${inlineCostInput('cemdr', a.id, a.cost)}</td>
           <td class="col-num">${prev ? fmtMoney(prev.cost) : '<span class="text-muted">-</span>'}</td>
           <td>${fmtDate(a.payment_date)}</td>
           <td>${fmtText(a.this_year_auditor)}</td>
@@ -2229,6 +2232,33 @@ function inlineAuditTypeSelect(certCategory, id, current) {
 
 function inlineDateInput(certCategory, id, field, current) {
   return `<input type="date" class="inline-edit" value="${current || ''}" onchange="updateAuditField('${certCategory}', ${id}, '${field}', this.value)">`;
+}
+
+function inlineCostInput(certCategory, id, cost) {
+  const amount = (cost && cost.amount !== null && cost.amount !== undefined) ? cost.amount : '';
+  const currency = (cost && cost.currency) || 'KRW';
+  const currencies = ['KRW', 'USD', 'EUR', 'CNY'];
+  const options = currencies.map(c => `<option value="${c}" ${currency === c ? 'selected' : ''}>${c}</option>`).join('');
+  return `
+    <span class="inline-cost">
+      <input type="number" step="any" class="inline-edit inline-cost-amount" value="${amount}" placeholder="금액"
+        onchange="updateAuditCost('${certCategory}', ${id}, this.value, this.parentNode.querySelector('select').value)">
+      <select class="inline-edit inline-cost-currency"
+        onchange="updateAuditCost('${certCategory}', ${id}, this.parentNode.querySelector('input').value, this.value)">${options}</select>
+    </span>
+  `;
+}
+
+async function updateAuditCost(certCategory, id, amount, currency) {
+  const store = certCategory === '13485' ? 'audits_13485' : 'audits_cemdr';
+  const list = await dbGetAll(store);
+  const item = list.find(a => a.id === id);
+  if (!item) return;
+  const parsed = (amount === '' || amount === null) ? null : parseFloat(amount);
+  item.cost = { amount: isNaN(parsed) ? null : parsed, currency: currency || 'KRW' };
+  await dbPut(store, item);
+  await loadState();
+  renderAll();
 }
 
 // 심사 유형 사이클: 최초/갱신 → 사후1 → 사후2 → 갱신

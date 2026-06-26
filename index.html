@@ -1725,7 +1725,7 @@ function renderISO13485() {
           <td class="col-narrow">${inlineMonthSelect('13485', a.id, a.audit_month)}</td>
           <td>${inlineDateInput('13485', a.id, 'audit_date', a.audit_date)}</td>
           <td class="col-num">${inlineCostInput('13485', a.id, a.cost)}</td>
-          <td class="col-num">${prev ? inlinePrevYearGroup('13485', prev) : '<span class="text-muted">-</span>'}</td>
+          <td class="col-num">${prev ? inlinePrevYearGroup('13485', prev) : inlinePrevYearCreate('13485', a)}</td>
           <td>${inlineDateInput('13485', a.id, 'payment_date', a.payment_date)}</td>
           <td>${inlinePaymentStatusSelect('13485', a.id, a.payment_status)}</td>
           <td>${inlineTextInput('13485', a.id, 'this_year_auditor', a.this_year_auditor, '심사원')}</td>
@@ -1801,7 +1801,7 @@ function renderCEMDR() {
           <td>${inlineAuditTypeSelect('cemdr', a.id, a.audit_type)}</td>
           <td class="col-narrow">${inlineMonthSelect('cemdr', a.id, a.audit_month)}</td>
           <td class="col-num">${inlineCostInput('cemdr', a.id, a.cost)}</td>
-          <td class="col-num">${prev ? inlinePrevYearGroup('cemdr', prev) : '<span class="text-muted">-</span>'}</td>
+          <td class="col-num">${prev ? inlinePrevYearGroup('cemdr', prev) : inlinePrevYearCreate('cemdr', a)}</td>
           <td>${inlineDateInput('cemdr', a.id, 'payment_date', a.payment_date)}</td>
           <td>${inlineTextInput('cemdr', a.id, 'this_year_auditor', a.this_year_auditor, '심사원')}</td>
           <td>${inlineTextInput('cemdr', a.id, 'next_year_auditor', a.next_year_auditor, '심사원')}</td>
@@ -2468,6 +2468,64 @@ function inlineMonthSelect(certCategory, id, current) {
 function inlinePrevYearGroup(certCategory, prev) {
   // 전년도 셀: 비용만 인라인 편집
   return inlineCostInput(certCategory, prev.id, prev.cost);
+}
+
+// 전년도 레코드가 없을 때: 금액 입력하는 순간 해당 업체의 전년도 레코드를 생성
+function inlinePrevYearCreate(certCategory, currentItem) {
+  return `
+    <span class="inline-cost">
+      <input type="text" inputmode="decimal" class="inline-edit inline-cost-amount" placeholder="금액"
+        oninput="this.value = this.value.replace(/[^0-9.\\-]/g, '')"
+        onblur="this.value = formatNumberKR(this.value); createPrevYearRecord('${certCategory}', ${currentItem.id}, this.value.replace(/,/g, ''), this.parentNode.querySelector('select').value)">
+      <select class="inline-edit inline-cost-currency">
+        <option value="KRW">KRW</option>
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="CNY">CNY</option>
+      </select>
+    </span>
+  `;
+}
+
+async function createPrevYearRecord(certCategory, currentId, amount, currency) {
+  if (!amount || amount === '') return;
+  const parsed = parseFloat(amount);
+  if (isNaN(parsed)) return;
+  const store = certCategory === '13485' ? 'audits_13485' : 'audits_cemdr';
+  const list = await dbGetAll(store);
+  const current = list.find(a => a.id === currentId);
+  if (!current) return;
+  const prevYear = (parseInt(current.year) || new Date().getFullYear()) - 1;
+  // 이미 있는지 확인
+  const exists = list.find(a => a.company === current.company && a.cert_type === current.cert_type && parseInt(a.year) === prevYear);
+  if (exists) {
+    exists.cost = { amount: parsed, currency: currency || 'KRW' };
+    await dbPut(store, exists);
+  } else {
+    const carry = {
+      company: current.company,
+      cert_type: current.cert_type,
+      year: prevYear,
+      audit_type: null,
+      audit_month: null,
+      audit_date: null,
+      cost: { amount: parsed, currency: currency || 'KRW' },
+      payment_date: null,
+      payment_status: '미입금',
+      this_year_auditor: '',
+      next_year_auditor: '',
+      sales_person: current.sales_person || '',
+      notes: '',
+      status: '완료'
+    };
+    if (store === 'audits_cemdr') {
+      carry.product = current.product || '';
+      carry.grade = current.grade || '';
+    }
+    await dbPut(store, carry);
+  }
+  await loadState();
+  renderAll();
 }
 
 async function updateAuditMonth(certCategory, id, value) {

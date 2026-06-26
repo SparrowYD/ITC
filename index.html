@@ -289,8 +289,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   table.data tbody td:last-child { border-right: none; }
   table.data tbody tr { transition: background-color 0.1s; }
-  table.data tbody tr:hover { background: #FAFBFC; }
-  table.data tbody tr.editing { background: #FEF3C7; }
+  table.data tbody tr:nth-child(even) { background: #F8FAFC; }
+  table.data tbody tr:hover { background: #EFF6FF !important; }
+  table.data tbody tr.editing { background: #FEF3C7 !important; }
 
   .col-company { font-weight: 600; color: #111827; min-width: 140px; max-width: 200px; }
   .col-num { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
@@ -578,7 +579,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     <div class="header-spacer"></div>
     <div class="header-actions">
       <label style="font-size: 12px; color: #6B7280; font-weight: 500; margin-right: 4px;">기준 연도</label>
-      <select class="filter" id="globalYear" style="min-width: 90px;"><option value="2023">2023년</option><option value="2024">2024년</option><option value="2025">2025년</option><option value="2026" selected="">2026년</option><option value="2027">2027년</option><option value="2028">2028년</option><option value="2029">2029년</option><option value="2030">2030년</option></select>
+      <select class="filter" id="globalYear" style="min-width: 90px;"></select>
+      <button class="btn btn-sm" title="연도 추가" onclick="addYear()" style="margin-left:4px;">＋</button>
+      <button class="btn btn-sm" title="현재 연도 삭제(데이터는 유지)" onclick="deleteYear()">－</button>
       <div class="dropdown" id="exportDropdown">
         <button class="btn" onclick="toggleDropdown(&#39;exportDropdown&#39;)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -613,6 +616,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     </button>
     <button class="tab" data-tab="cemdr" onclick="switchTab(&#39;cemdr&#39;)">
       CE / MDR <span class="tab-count" id="count-cemdr">0</span>
+    </button>
+    <button class="tab" data-tab="mdd" onclick="switchTab(&#39;mdd&#39;)">
+      MDD <span class="tab-count" id="count-mdd">0</span>
     </button>
     <button class="tab" data-tab="inquiries" onclick="switchTab(&#39;inquiries&#39;)">
       문의접수 <span class="tab-count" id="count-inquiries">11</span>
@@ -1012,6 +1018,43 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     </div>
   </div>
 
+  <!-- ===== MDD PANEL ===== -->
+  <div class="panel" data-panel="mdd">
+    <div class="stats-bar" id="stats-mdd"></div>
+    <div class="toolbar">
+      <div class="search-box">
+        <span class="search-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </span>
+        <input type="text" placeholder="업체명, 제품, 심사원 검색..." id="search-mdd">
+      </div>
+      <select class="filter" id="filterType-mdd">
+        <option value="">전체 심사유형</option>
+        <option value="최초">최초</option>
+        <option value="사후1">사후1</option>
+        <option value="사후2">사후2</option>
+        <option value="갱신">갱신</option>
+      </select>
+      <select class="filter" id="filterStatus-mdd">
+        <option value="">전체 상태</option>
+        <option value="문의단계">문의단계</option>
+        <option value="예정">예정</option>
+        <option value="진행">진행</option>
+        <option value="완료">완료</option>
+        <option value="포기">포기</option>
+        <option value="거절">거절</option>
+      </select>
+      <div class="toolbar-spacer"></div>
+      <button class="btn btn-primary" onclick="openAuditForm('mdd')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        새 심사 추가
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table class="data" id="table-mdd"><tbody></tbody></table>
+    </div>
+  </div>
+
   <!-- ===== INQUIRIES PANEL ===== -->
   <div class="panel" data-panel="inquiries">
     <div class="stats-bar" id="stats-inquiries">
@@ -1336,6 +1379,7 @@ let state = {
   filters: {
     iso13485: { search: '', type: '', status: '', payment: '' },
     cemdr: { search: '', cert: '', type: '', status: '' },
+    mdd: { search: '', type: '', status: '' },
     inquiries: { search: '', status: '', year: '' }
   }
 };
@@ -1551,16 +1595,28 @@ function findNextYearAudit(certType, company, currentYear) {
    ================================================================= */
 function getFilteredAudits(certType) {
   const isISO = certType === '13485';
-  const f = isISO ? state.filters.iso13485 : state.filters.cemdr;
+  const isMDD = certType === 'mdd';
+  const f = isISO ? state.filters.iso13485 : (isMDD ? state.filters.mdd : state.filters.cemdr);
   const list = isISO ? state.audits_13485 : state.audits_cemdr;
   const year = state.globalYear;
-  
+
   return list.filter(a => {
     if (a.year !== year) return false;
+    if (!isISO) {
+      // MDD 탭: cert_type === 'MDD' 만, CE/MDR 탭: MDD 제외
+      if (isMDD) {
+        if (a.cert_type !== 'MDD') return false;
+      } else {
+        if (a.cert_type === 'MDD') return false;
+      }
+    }
     if (isISO) {
       if (f.type && a.audit_type !== f.type) return false;
       if (f.status && a.status !== f.status) return false;
       if (f.payment && a.payment_status !== f.payment) return false;
+    } else if (isMDD) {
+      if (f.type && a.audit_type !== f.type) return false;
+      if (f.status && a.status !== f.status) return false;
     } else {
       if (f.cert && a.cert_type !== f.cert) return false;
       if (f.type && a.audit_type !== f.type) return false;
@@ -1802,7 +1858,7 @@ function renderStats(tab, items) {
   const el = document.getElementById(`stats-${tab}`);
   if (!el) return;
   
-  if (tab === 'iso13485' || tab === 'cemdr') {
+  if (tab === 'iso13485' || tab === 'cemdr' || tab === 'mdd') {
     const total = items.length;
     const done = items.filter(a => a.status === '완료' || a.payment_status === '입금완료').length;
     const pending = items.filter(a => a.payment_status === '미입금' || a.status === '예정' || a.status === '진행').length;
@@ -1878,10 +1934,73 @@ function renderStats(tab, items) {
    RENDER ALL
    ================================================================= */
 function renderAll() {
+  refreshYearSelector();
   renderISO13485();
   renderCEMDR();
+  renderMDD();
   renderInquiries();
   renderDataSummary();
+}
+
+function renderMDD() {
+  const audits = getFilteredAudits('mdd');
+  const tbl = document.getElementById('table-mdd');
+  if (!tbl) return;
+  let html = `
+    <thead>
+      <tr>
+        <th class="col-company">업체명</th>
+        <th>제품</th>
+        <th>등급</th>
+        <th>심사유형</th>
+        <th class="col-narrow">월</th>
+        <th>심사일자</th>
+        <th class="col-num">${state.globalYear} 비용</th>
+        <th>입금일</th>
+        <th>입금상태</th>
+        <th>올해 심사원</th>
+        <th>차년도 심사원</th>
+        <th>영업담당</th>
+        <th>상태</th>
+        <th class="col-notes">비고</th>
+        <th class="col-actions"></th>
+      </tr>
+    </thead>
+    <tbody>`;
+  if (audits.length === 0) {
+    html += `<tr><td colspan="15"><div class="empty">
+      <div class="empty-icon">🩺</div>
+      <div class="empty-title">${state.globalYear}년 MDD 데이터가 없습니다</div>
+      <div class="empty-desc">우측 상단의 <b>새 심사 추가</b> 버튼으로 입력하거나, 연도를 변경해 보세요.</div>
+    </div></td></tr>`;
+  } else {
+    audits.forEach(a => {
+      html += `
+        <tr>
+          <td class="col-company"><div class="truncate" title="${escapeHtml(a.company)}">${escapeHtml(a.company)}</div></td>
+          <td><div class="truncate" title="${escapeHtml(a.product || '')}">${escapeHtml((a.product || '').split('\n')[0])}</div></td>
+          <td>${fmtText(a.grade)}</td>
+          <td>${inlineAuditTypeSelect('mdd', a.id, a.audit_type)}</td>
+          <td class="col-narrow">${fmtMonth(a.audit_month)}</td>
+          <td>${inlineDateInput('mdd', a.id, 'audit_date', a.audit_date)}</td>
+          <td class="col-num">${inlineCostInput('mdd', a.id, a.cost)}</td>
+          <td>${inlineDateInput('mdd', a.id, 'payment_date', a.payment_date)}</td>
+          <td>${inlinePaymentStatusSelect('mdd', a.id, a.payment_status)}</td>
+          <td>${inlineTextInput('mdd', a.id, 'this_year_auditor', a.this_year_auditor, '심사원')}</td>
+          <td>${inlineTextInput('mdd', a.id, 'next_year_auditor', a.next_year_auditor, '심사원')}</td>
+          <td>${inlineTextInput('mdd', a.id, 'sales_person', a.sales_person, '담당자')}</td>
+          <td>${inlineStatusSelect('mdd', a.id, a.status || '문의단계')}</td>
+          <td class="notes-cell"><div class="truncate" title="${escapeHtml(a.notes || '')}">${escapeHtml((a.notes || '').split('\n')[0]).slice(0, 50)}${(a.notes || '').length > 50 ? '…' : ''}</div></td>
+          <td class="col-actions">
+            <button class="btn btn-sm" onclick="openAuditForm('mdd', ${a.id})">편집</button>
+          </td>
+        </tr>`;
+    });
+  }
+  html += '</tbody>';
+  tbl.innerHTML = html;
+  document.getElementById('count-mdd').textContent = audits.length;
+  renderStats('mdd', audits);
 }
 
 function renderDataSummary() {
@@ -1912,16 +2031,81 @@ function switchTab(tab) {
 /* =================================================================
    YEAR SELECTOR
    ================================================================= */
-function initYearSelector() {
-  const sel = document.getElementById('globalYear');
+const YEAR_LIST_KEY = 'itc_asia_year_list';
+
+function loadYearList() {
+  try {
+    const raw = localStorage.getItem(YEAR_LIST_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
   const current = new Date().getFullYear();
   const years = [];
   for (let y = current - 3; y <= current + 4; y++) years.push(y);
+  return years;
+}
+
+function saveYearList(years) {
+  localStorage.setItem(YEAR_LIST_KEY, JSON.stringify(years));
+}
+
+function getYearList() {
+  // 데이터에 이미 존재하는 연도는 항상 포함
+  const dataYears = new Set();
+  (state.audits_13485 || []).forEach(a => a.year && dataYears.add(parseInt(a.year)));
+  (state.audits_cemdr || []).forEach(a => a.year && dataYears.add(parseInt(a.year)));
+  const stored = loadYearList();
+  const merged = Array.from(new Set([...stored, ...dataYears])).filter(y => y).sort((a,b) => a - b);
+  return merged;
+}
+
+function refreshYearSelector() {
+  const sel = document.getElementById('globalYear');
+  if (!sel) return;
+  const years = getYearList();
+  if (!years.includes(state.globalYear)) state.globalYear = years[years.length - 1] || new Date().getFullYear();
   sel.innerHTML = years.map(y => `<option value="${y}" ${y === state.globalYear ? 'selected' : ''}>${y}년</option>`).join('');
+}
+
+function initYearSelector() {
+  const sel = document.getElementById('globalYear');
+  refreshYearSelector();
   sel.addEventListener('change', () => {
     state.globalYear = parseInt(sel.value);
     renderAll();
   });
+}
+
+function addYear() {
+  const input = prompt('추가할 연도를 입력하세요 (예: 2031)', String(new Date().getFullYear() + 1));
+  if (!input) return;
+  const y = parseInt(input);
+  if (!y || y < 1900 || y > 2100) { toast('올바른 연도를 입력하세요', 'error'); return; }
+  const stored = loadYearList();
+  if (stored.includes(y)) { toast('이미 추가된 연도입니다', 'error'); return; }
+  stored.push(y);
+  stored.sort((a,b) => a - b);
+  saveYearList(stored);
+  state.globalYear = y;
+  refreshYearSelector();
+  renderAll();
+  toast(`${y}년이 추가되었습니다`, 'success');
+}
+
+function deleteYear() {
+  const y = state.globalYear;
+  // 해당 연도에 데이터가 있으면 삭제 불가 (안전)
+  const hasData = (state.audits_13485 || []).some(a => parseInt(a.year) === y)
+    || (state.audits_cemdr || []).some(a => parseInt(a.year) === y);
+  if (hasData) {
+    toast(`${y}년에 데이터가 있어 삭제할 수 없습니다`, 'error');
+    return;
+  }
+  if (!confirm(`${y}년을 연도 목록에서 삭제하시겠습니까?`)) return;
+  const stored = loadYearList().filter(x => x !== y);
+  saveYearList(stored);
+  refreshYearSelector();
+  renderAll();
+  toast(`${y}년이 삭제되었습니다`, 'success');
 }
 
 /* =================================================================
@@ -1963,7 +2147,15 @@ function wireFilters() {
     state.filters.cemdr.status = e.target.value;
     renderCEMDR();
   });
-  
+
+  // MDD
+  const mddSearch = document.getElementById('search-mdd');
+  if (mddSearch) {
+    mddSearch.addEventListener('input', e => { state.filters.mdd.search = e.target.value; renderMDD(); });
+    document.getElementById('filterType-mdd').addEventListener('change', e => { state.filters.mdd.type = e.target.value; renderMDD(); });
+    document.getElementById('filterStatus-mdd').addEventListener('change', e => { state.filters.mdd.status = e.target.value; renderMDD(); });
+  }
+
   // Inquiries
   document.getElementById('search-inquiries').addEventListener('input', e => {
     state.filters.inquiries.search = e.target.value;
@@ -1984,11 +2176,12 @@ function wireFilters() {
    ================================================================= */
 function openAuditForm(certCategory, id = null) {
   const isISO = certCategory === '13485';
+  const isMDD = certCategory === 'mdd';
   const store = isISO ? 'audits_13485' : 'audits_cemdr';
   const list = isISO ? state.audits_13485 : state.audits_cemdr;
   const existing = id ? list.find(a => a.id === id) : null;
   const data = existing ? JSON.parse(JSON.stringify(existing)) : {
-    cert_type: isISO ? '13485' : 'MDR',
+    cert_type: isISO ? '13485' : (isMDD ? 'MDD' : 'MDR'),
     company: '',
     year: state.globalYear,
     audit_type: '',
@@ -2011,7 +2204,7 @@ function openAuditForm(certCategory, id = null) {
     <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
       <div class="modal">
         <div class="modal-header">
-          <div class="modal-title">${existing ? '심사 편집' : '새 심사 추가'} · ${isISO ? 'ISO 13485' : 'CE / MDR'}</div>
+          <div class="modal-title">${existing ? '심사 편집' : '새 심사 추가'} · ${isISO ? 'ISO 13485' : (isMDD ? 'MDD' : 'CE / MDR')}</div>
           <button class="modal-close" onclick="closeModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -2178,17 +2371,19 @@ async function saveAudit(certCategory, id) {
   }
   if (id) item.id = id;
 
-  // 이전 상태를 확인하여 "입금완료"로 전환되는 순간을 감지
+  // 이전 상태를 확인하여 "입금완료"/"완료"로 전환되는 순간을 감지
   const prevList = isISO ? state.audits_13485 : state.audits_cemdr;
   const prevItem = id ? prevList.find(a => a.id === id) : null;
   const wasPaid = prevItem && prevItem.payment_status === '입금완료';
   const isPaid = item.payment_status === '입금완료';
+  const wasDone = prevItem && prevItem.status === '완료';
+  const isDone = item.status === '완료';
 
   await dbPut(store, item);
 
-  // 입금완료로 전환되는 순간: 동일 업체의 다음 해 정기심사 레코드를 자동 생성
+  // 입금완료 또는 심사상태=완료로 전환되는 순간: 동일 업체의 다음 해 정기심사 레코드를 자동 생성
   let rolledOver = false;
-  if (isPaid && !wasPaid) {
+  if ((isPaid && !wasPaid) || (isDone && !wasDone)) {
     rolledOver = await rolloverToNextYear(store, item);
   }
 
@@ -2208,12 +2403,17 @@ async function updateAuditField(certCategory, id, field, value) {
   if (!item) return;
 
   const prevPaymentStatus = item.payment_status;
+  const prevStatus = item.status;
   item[field] = value === '' ? null : value;
   await dbPut(store, item);
 
-  // 입금상태를 인라인으로 바꾸는 경우에도 자동 이관이 동작하도록 동일 로직 적용
+  // 인라인 변경에도 자동 이관 로직 적용:
+  // - 입금상태 = 입금완료로 전환  → 다음 해 레코드 생성
+  // - 심사상태 = 완료로 전환     → 다음 해 레코드 생성
   let rolledOver = false;
-  if (field === 'payment_status' && value === '입금완료' && prevPaymentStatus !== '입금완료') {
+  const paymentTriggered = field === 'payment_status' && value === '입금완료' && prevPaymentStatus !== '입금완료';
+  const statusTriggered = field === 'status' && value === '완료' && prevStatus !== '완료';
+  if (paymentTriggered || statusTriggered) {
     rolledOver = await rolloverToNextYear(store, item);
   }
 

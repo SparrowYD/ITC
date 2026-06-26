@@ -1674,7 +1674,7 @@ function renderISO13485() {
         <th class="col-narrow">월</th>
         <th>심사일자</th>
         <th class="col-num">${state.globalYear} 비용</th>
-        <th class="col-num">${state.globalYear - 1} 비용/입금</th>
+        <th class="col-num">${state.globalYear - 1} 비용</th>
         <th>입금일</th>
         <th>입금상태</th>
         <th>올해 심사원</th>
@@ -1744,7 +1744,7 @@ function renderCEMDR() {
         <th>심사유형</th>
         <th class="col-narrow">월</th>
         <th class="col-num">${state.globalYear} 비용</th>
-        <th class="col-num">${state.globalYear - 1} 비용/입금</th>
+        <th class="col-num">${state.globalYear - 1} 비용</th>
         <th>입금일</th>
         <th>올해 심사원</th>
         <th>차년도 심사원</th>
@@ -2448,13 +2448,8 @@ function inlineMonthSelect(certCategory, id, current) {
 }
 
 function inlinePrevYearGroup(certCategory, prev) {
-  // 전년도 셀: 비용 + 입금상태만 인라인 편집 (입금일은 표시하지 않음)
-  return `
-    <div class="prev-stack">
-      ${inlineCostInput(certCategory, prev.id, prev.cost)}
-      ${inlinePaymentStatusSelect(certCategory, prev.id, prev.payment_status)}
-    </div>
-  `;
+  // 전년도 셀: 비용만 인라인 편집
+  return inlineCostInput(certCategory, prev.id, prev.cost);
 }
 
 async function updateAuditMonth(certCategory, id, value) {

@@ -2448,11 +2448,10 @@ function inlineMonthSelect(certCategory, id, current) {
 }
 
 function inlinePrevYearGroup(certCategory, prev) {
-  // 전년도 셀: 비용 + 입금일 + 입금상태를 한 칸에 컴팩트하게 인라인 편집
+  // 전년도 셀: 비용 + 입금상태만 인라인 편집 (입금일은 표시하지 않음)
   return `
     <div class="prev-stack">
       ${inlineCostInput(certCategory, prev.id, prev.cost)}
-      ${inlineDateInput(certCategory, prev.id, 'payment_date', prev.payment_date)}
       ${inlinePaymentStatusSelect(certCategory, prev.id, prev.payment_status)}
     </div>
   `;

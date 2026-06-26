@@ -2992,33 +2992,69 @@ function setColWidths(ws, rows) {
 function exportExcel(scope) {
   const wb = XLSX.utils.book_new();
   const today = new Date().toISOString().slice(0, 10);
-  
+
   let scopes = [];
   if (scope === 'all') scopes = ['iso13485', 'cemdr', 'inquiries'];
-  else if (scope === 'current') scopes = [state.currentTab === 'data' ? 'iso13485' : state.currentTab];
+  else if (scope === 'current') {
+    const t = state.currentTab === 'data' ? 'iso13485' : state.currentTab;
+    scopes = [t === 'mdd' ? 'cemdr' : t]; // MDD는 cemdr 스토어 사용 → cemdr 범위로 통합 처리
+  }
   else scopes = [scope];
-  
+
+  // 연도별 + 카테고리별로 시트 분리
+  // 시트명 형식: 'YYYY ISO13485', 'YYYY MDR_CE', 'YYYY MDD'
+  function addSheet(name, rows) {
+    if (!rows || rows.length === 0) return;
+    const ws = XLSX.utils.json_to_sheet(rows);
+    setColWidths(ws, rows);
+    // 엑셀 시트명 31자 제한
+    const safeName = name.length > 31 ? name.slice(0, 31) : name;
+    XLSX.utils.book_append_sheet(wb, ws, safeName);
+  }
+
+  // 연도 정렬 추출
+  function yearsIn(list) {
+    return Array.from(new Set(list.map(a => parseInt(a.year)).filter(Boolean))).sort((a, b) => a - b);
+  }
+
   scopes.forEach(s => {
     if (s === 'iso13485') {
-      const rows = state.audits_13485.map(flattenAudit);
-      const ws = XLSX.utils.json_to_sheet(rows);
-      setColWidths(ws, rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'ISO 13485');
+      const years = yearsIn(state.audits_13485);
+      years.forEach(y => {
+        const rows = state.audits_13485.filter(a => parseInt(a.year) === y).map(flattenAudit);
+        addSheet(`${y} ISO13485`, rows);
+      });
     } else if (s === 'cemdr') {
-      const rows = state.audits_cemdr.map(flattenAudit);
-      const ws = XLSX.utils.json_to_sheet(rows);
-      setColWidths(ws, rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'CE_MDR');
+      // MDR/CE 와 MDD를 분리하여 시트를 따로 만듦
+      const years = yearsIn(state.audits_cemdr);
+      years.forEach(y => {
+        const inYear = state.audits_cemdr.filter(a => parseInt(a.year) === y);
+        const mdrce = inYear.filter(a => a.cert_type !== 'MDD').map(flattenAudit);
+        const mdd = inYear.filter(a => a.cert_type === 'MDD').map(flattenAudit);
+        addSheet(`${y} MDR_CE`, mdrce);
+        addSheet(`${y} MDD`, mdd);
+      });
     } else if (s === 'inquiries') {
-      const rows = state.inquiries.map(flattenInquiry);
-      const ws = XLSX.utils.json_to_sheet(rows);
-      setColWidths(ws, rows);
-      XLSX.utils.book_append_sheet(wb, ws, '문의접수');
+      // 문의는 inquiry_date의 연도로 묶음
+      const yearOf = a => (a.inquiry_date || '').slice(0, 4);
+      const years = Array.from(new Set(state.inquiries.map(yearOf).filter(Boolean))).sort();
+      years.forEach(y => {
+        const rows = state.inquiries.filter(a => yearOf(a) === y).map(flattenInquiry);
+        addSheet(`${y} 문의접수`, rows);
+      });
+      // 연도 없는 문의도 별도 시트
+      const noYear = state.inquiries.filter(a => !yearOf(a)).map(flattenInquiry);
+      if (noYear.length) addSheet('문의접수 (연도없음)', noYear);
     }
   });
-  
+
+  if (wb.SheetNames.length === 0) {
+    // 데이터가 비어 있어도 빈 시트라도 하나 만들어 엑셀이 열리도록
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['데이터 없음']]), '비어있음');
+  }
+
   XLSX.writeFile(wb, `ITC_ASIA_심사관리_${today}.xlsx`);
-  toast('엑셀 파일을 다운로드했습니다', 'success');
+  toast('엑셀 파일을 연도별 시트로 정리해 다운로드했습니다', 'success');
 }
 
 function exportJson() {

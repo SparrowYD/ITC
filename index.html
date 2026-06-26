@@ -250,6 +250,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .inline-cost { display: inline-flex; gap: 2px; align-items: center; }
   .inline-cost-amount { max-width: 90px; text-align: right; }
   .inline-cost-currency { max-width: 60px; }
+  .inline-text { min-width: 110px; max-width: 160px; width: 100%; }
 
   /* ---------- Table ---------- */
   .table-wrap {
@@ -1645,12 +1646,12 @@ function renderISO13485() {
           <td>${inlineDateInput('13485', a.id, 'audit_date', a.audit_date)}</td>
           <td class="col-num">${inlineCostInput('13485', a.id, a.cost)}</td>
           <td class="col-num">${prev ? fmtMoney(prev.cost) : '<span class="text-muted">-</span>'}</td>
-          <td>${fmtDate(a.payment_date)}</td>
-          <td>${a.payment_status ? statusBadge(a.payment_status) : '<span class="text-muted">-</span>'}</td>
-          <td>${fmtText(a.this_year_auditor)}</td>
-          <td>${fmtText(a.next_year_auditor || (next ? next.this_year_auditor : null))}</td>
-          <td>${fmtText(a.sales_person)}</td>
-          <td>${statusBadge(a.status || '예정')}</td>
+          <td>${inlineDateInput('13485', a.id, 'payment_date', a.payment_date)}</td>
+          <td>${inlinePaymentStatusSelect('13485', a.id, a.payment_status)}</td>
+          <td>${inlineTextInput('13485', a.id, 'this_year_auditor', a.this_year_auditor, '심사원')}</td>
+          <td>${inlineTextInput('13485', a.id, 'next_year_auditor', a.next_year_auditor, '심사원')}</td>
+          <td>${inlineTextInput('13485', a.id, 'sales_person', a.sales_person, '담당자')}</td>
+          <td>${inlineStatusSelect('13485', a.id, a.status || '예정')}</td>
           <td class="notes-cell"><div class="truncate" title="${escapeHtml(a.notes || '')}">${escapeHtml(a.notes || '').slice(0, 50)}${(a.notes || '').length > 50 ? '…' : ''}</div></td>
           <td class="col-actions">
             <button class="btn btn-sm" onclick="openAuditForm('13485', ${a.id})">편집</button>
@@ -1716,11 +1717,11 @@ function renderCEMDR() {
           <td class="col-narrow">${fmtMonth(a.audit_month)}</td>
           <td class="col-num">${inlineCostInput('cemdr', a.id, a.cost)}</td>
           <td class="col-num">${prev ? fmtMoney(prev.cost) : '<span class="text-muted">-</span>'}</td>
-          <td>${fmtDate(a.payment_date)}</td>
-          <td>${fmtText(a.this_year_auditor)}</td>
-          <td>${fmtText(a.next_year_auditor || (next ? next.this_year_auditor : null))}</td>
-          <td>${fmtText(a.sales_person)}</td>
-          <td>${statusBadge(a.status || '문의단계')}</td>
+          <td>${inlineDateInput('cemdr', a.id, 'payment_date', a.payment_date)}</td>
+          <td>${inlineTextInput('cemdr', a.id, 'this_year_auditor', a.this_year_auditor, '심사원')}</td>
+          <td>${inlineTextInput('cemdr', a.id, 'next_year_auditor', a.next_year_auditor, '심사원')}</td>
+          <td>${inlineTextInput('cemdr', a.id, 'sales_person', a.sales_person, '담당자')}</td>
+          <td>${inlineStatusSelect('cemdr', a.id, a.status || '문의단계')}</td>
           <td class="notes-cell"><div class="truncate" title="${escapeHtml(a.notes || '')}">${escapeHtml((a.notes || '').split('\n')[0]).slice(0, 50)}${(a.notes || '').length > 50 ? '…' : ''}</div></td>
           <td class="col-actions">
             <button class="btn btn-sm" onclick="openAuditForm('cemdr', ${a.id})">편집</button>
@@ -2247,6 +2248,26 @@ function inlineCostInput(certCategory, id, cost) {
         onchange="updateAuditCost('${certCategory}', ${id}, this.parentNode.querySelector('input').value, this.value)">${options}</select>
     </span>
   `;
+}
+
+function inlineTextInput(certCategory, id, field, current, placeholder) {
+  const val = (current == null ? '' : String(current)).replace(/"/g, '&quot;');
+  return `<input type="text" class="inline-edit inline-text" value="${val}" placeholder="${placeholder || ''}"
+    onchange="updateAuditField('${certCategory}', ${id}, '${field}', this.value)">`;
+}
+
+function inlinePaymentStatusSelect(certCategory, id, current) {
+  const opts = [['미입금','미입금'], ['입금완료','입금완료'], ['포기','포기'], ['이관','이관']];
+  const options = opts.map(([v, l]) => `<option value="${v}" ${(current || '미입금') === v ? 'selected' : ''}>${l}</option>`).join('');
+  return `<select class="inline-edit" onchange="updateAuditField('${certCategory}', ${id}, 'payment_status', this.value)">${options}</select>`;
+}
+
+function inlineStatusSelect(certCategory, id, current) {
+  const opts = certCategory === '13485'
+    ? ['예정','진행','완료','포기','거절','이관']
+    : ['예정','진행','완료','문의단계','포기','거절','이관'];
+  const options = opts.map(v => `<option value="${v}" ${current === v ? 'selected' : ''}>${v}</option>`).join('');
+  return `<select class="inline-edit" onchange="updateAuditField('${certCategory}', ${id}, 'status', this.value)">${options}</select>`;
 }
 
 async function updateAuditCost(certCategory, id, amount, currency) {

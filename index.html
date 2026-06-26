@@ -251,6 +251,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .inline-cost-amount { max-width: 90px; text-align: right; }
   .inline-cost-currency { max-width: 60px; }
   .inline-text { min-width: 110px; max-width: 160px; width: 100%; }
+  .inline-month { max-width: 70px; }
 
   /* ---------- Table ---------- */
   .table-wrap {
@@ -1698,10 +1699,10 @@ function renderISO13485() {
         <tr>
           <td class="col-company"><div class="truncate" title="${escapeHtml(a.company)}">${escapeHtml(a.company)}</div></td>
           <td>${inlineAuditTypeSelect('13485', a.id, a.audit_type)}</td>
-          <td class="col-narrow">${fmtMonth(a.audit_month)}</td>
+          <td class="col-narrow">${inlineMonthSelect('13485', a.id, a.audit_month)}</td>
           <td>${inlineDateInput('13485', a.id, 'audit_date', a.audit_date)}</td>
           <td class="col-num">${inlineCostInput('13485', a.id, a.cost)}</td>
-          <td class="col-num">${prev ? fmtMoney(prev.cost) : '<span class="text-muted">-</span>'}</td>
+          <td class="col-num">${prev ? inlineCostInput('13485', prev.id, prev.cost) : '<span class="text-muted">-</span>'}</td>
           <td>${inlineDateInput('13485', a.id, 'payment_date', a.payment_date)}</td>
           <td>${inlinePaymentStatusSelect('13485', a.id, a.payment_status)}</td>
           <td>${inlineTextInput('13485', a.id, 'this_year_auditor', a.this_year_auditor, '심사원')}</td>
@@ -1770,9 +1771,9 @@ function renderCEMDR() {
           <td><div class="truncate" title="${escapeHtml(a.product || '')}">${escapeHtml((a.product || '').split('\n')[0])}</div></td>
           <td>${fmtText(a.grade)}</td>
           <td>${inlineAuditTypeSelect('cemdr', a.id, a.audit_type)}</td>
-          <td class="col-narrow">${fmtMonth(a.audit_month)}</td>
+          <td class="col-narrow">${inlineMonthSelect('cemdr', a.id, a.audit_month)}</td>
           <td class="col-num">${inlineCostInput('cemdr', a.id, a.cost)}</td>
-          <td class="col-num">${prev ? fmtMoney(prev.cost) : '<span class="text-muted">-</span>'}</td>
+          <td class="col-num">${prev ? inlineCostInput('cemdr', prev.id, prev.cost) : '<span class="text-muted">-</span>'}</td>
           <td>${inlineDateInput('cemdr', a.id, 'payment_date', a.payment_date)}</td>
           <td>${inlineTextInput('cemdr', a.id, 'this_year_auditor', a.this_year_auditor, '심사원')}</td>
           <td>${inlineTextInput('cemdr', a.id, 'next_year_auditor', a.next_year_auditor, '심사원')}</td>
@@ -1981,7 +1982,7 @@ function renderMDD() {
           <td><div class="truncate" title="${escapeHtml(a.product || '')}">${escapeHtml((a.product || '').split('\n')[0])}</div></td>
           <td>${fmtText(a.grade)}</td>
           <td>${inlineAuditTypeSelect('mdd', a.id, a.audit_type)}</td>
-          <td class="col-narrow">${fmtMonth(a.audit_month)}</td>
+          <td class="col-narrow">${inlineMonthSelect('mdd', a.id, a.audit_month)}</td>
           <td>${inlineDateInput('mdd', a.id, 'audit_date', a.audit_date)}</td>
           <td class="col-num">${inlineCostInput('mdd', a.id, a.cost)}</td>
           <td>${inlineDateInput('mdd', a.id, 'payment_date', a.payment_date)}</td>
@@ -2433,6 +2434,25 @@ function inlineAuditTypeSelect(certCategory, id, current) {
 
 function inlineDateInput(certCategory, id, field, current) {
   return `<input type="date" class="inline-edit" value="${current || ''}" onchange="updateAuditField('${certCategory}', ${id}, '${field}', this.value)">`;
+}
+
+function inlineMonthSelect(certCategory, id, current) {
+  let options = `<option value="">-</option>`;
+  for (let m = 1; m <= 12; m++) {
+    options += `<option value="${m}" ${current == m ? 'selected' : ''}>${m}월</option>`;
+  }
+  return `<select class="inline-edit inline-month" onchange="updateAuditMonth('${certCategory}', ${id}, this.value)">${options}</select>`;
+}
+
+async function updateAuditMonth(certCategory, id, value) {
+  const store = certCategory === '13485' ? 'audits_13485' : 'audits_cemdr';
+  const list = await dbGetAll(store);
+  const item = list.find(a => a.id === id);
+  if (!item) return;
+  item.audit_month = value === '' ? null : parseInt(value);
+  await dbPut(store, item);
+  await loadState();
+  renderAll();
 }
 
 function inlineCostInput(certCategory, id, cost) {

@@ -2405,19 +2405,11 @@ async function saveAudit(certCategory, id) {
   }
   if (id) item.id = id;
 
-  // 이전 상태를 확인하여 "입금완료"/"완료"로 전환되는 순간을 감지
-  const prevList = isISO ? state.audits_13485 : state.audits_cemdr;
-  const prevItem = id ? prevList.find(a => a.id === id) : null;
-  const wasPaid = prevItem && prevItem.payment_status === '입금완료';
-  const isPaid = item.payment_status === '입금완료';
-  const wasDone = prevItem && prevItem.status === '완료';
-  const isDone = item.status === '완료';
-
   await dbPut(store, item);
 
-  // 입금완료 또는 심사상태=완료로 전환되는 순간: 동일 업체의 다음 해 정기심사 레코드를 자동 생성
+  // 자동 이관: 입금완료 또는 심사상태=완료 인 상태에서 다음 해 레코드가 없다면 생성
   let rolledOver = false;
-  if ((isPaid && !wasPaid) || (isDone && !wasDone)) {
+  if (item.payment_status === '입금완료' || item.status === '완료') {
     rolledOver = await rolloverToNextYear(store, item);
   }
 
@@ -2436,18 +2428,14 @@ async function updateAuditField(certCategory, id, field, value) {
   const item = list.find(a => a.id === id);
   if (!item) return;
 
-  const prevPaymentStatus = item.payment_status;
-  const prevStatus = item.status;
   item[field] = value === '' ? null : value;
   await dbPut(store, item);
 
-  // 인라인 변경에도 자동 이관 로직 적용:
-  // - 입금상태 = 입금완료로 전환  → 다음 해 레코드 생성
-  // - 심사상태 = 완료로 전환     → 다음 해 레코드 생성
+  // 자동 이관:
+  // 입금상태 = 입금완료 또는 심사상태 = 완료 인 상태에서 다음 해 레코드가 없다면 생성
+  // (이미 있으면 rolloverToNextYear가 중복을 방지)
   let rolledOver = false;
-  const paymentTriggered = field === 'payment_status' && value === '입금완료' && prevPaymentStatus !== '입금완료';
-  const statusTriggered = field === 'status' && value === '완료' && prevStatus !== '완료';
-  if (paymentTriggered || statusTriggered) {
+  if (item.payment_status === '입금완료' || item.status === '완료') {
     rolledOver = await rolloverToNextYear(store, item);
   }
 

@@ -35,7 +35,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   html, body { height: 100%; }
   body {
     font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "맑은 고딕", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     color: #111827;
     background: #FFFFFF;
     line-height: 1.5;
@@ -235,9 +235,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   /* ---------- Inline edit ---------- */
   .inline-edit {
-    height: 26px;
+    height: 28px;
     padding: 0 6px;
-    font-size: 12px;
+    font-size: 13px;
     border: 1px solid transparent;
     background: transparent;
     border-radius: 4px;
@@ -266,7 +266,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 12.5px;
+    font-size: 13.5px;
   }
   table.data thead th {
     position: sticky;
@@ -707,8 +707,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <th class="col-num">2025 비용</th>
         <th>입금일</th>
         <th>입금상태</th>
-        <th>올해 심사원</th>
-        <th>차년도 심사원</th>
+        <th>현장 심사원</th>
+        <th>노미 심사원</th>
         <th>영업담당</th>
         <th>상태</th>
         <th class="col-notes">비고</th>
@@ -1005,8 +1005,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <th class="col-num">2026 비용</th>
         <th class="col-num">2025 비용</th>
         <th>입금일</th>
-        <th>올해 심사원</th>
-        <th>차년도 심사원</th>
+        <th>현장 심사원</th>
+        <th>노미 심사원</th>
         <th>영업담당</th>
         <th>상태</th>
         <th class="col-notes">비고</th>
@@ -1677,8 +1677,8 @@ function renderISO13485() {
         <th class="col-num">${state.globalYear - 1} 비용</th>
         <th>입금일</th>
         <th>입금상태</th>
-        <th>올해 심사원</th>
-        <th>차년도 심사원</th>
+        <th>현장 심사원</th>
+        <th>노미 심사원</th>
         <th>영업담당</th>
         <th>상태</th>
         <th class="col-notes">비고</th>
@@ -1746,8 +1746,8 @@ function renderCEMDR() {
         <th class="col-num">${state.globalYear} 비용</th>
         <th class="col-num">${state.globalYear - 1} 비용</th>
         <th>입금일</th>
-        <th>올해 심사원</th>
-        <th>차년도 심사원</th>
+        <th>현장 심사원</th>
+        <th>노미 심사원</th>
         <th>영업담당</th>
         <th>상태</th>
         <th class="col-notes">비고</th>
@@ -1962,8 +1962,8 @@ function renderMDD() {
         <th class="col-num">${state.globalYear} 비용</th>
         <th>입금일</th>
         <th>입금상태</th>
-        <th>올해 심사원</th>
-        <th>차년도 심사원</th>
+        <th>현장 심사원</th>
+        <th>노미 심사원</th>
         <th>영업담당</th>
         <th>상태</th>
         <th class="col-notes">비고</th>
@@ -2306,12 +2306,12 @@ function openAuditForm(certCategory, id = null) {
             </div>
             
             <div class="form-field">
-              <label>올해 심사원</label>
+              <label>현장 심사원</label>
               <input type="text" id="f-this_year_auditor" value="${escapeHtml(data.this_year_auditor || '')}" placeholder="예: 김명석, 조의형">
             </div>
             <div class="form-field">
-              <label>차년도 예정 심사원</label>
-              <input type="text" id="f-next_year_auditor" value="${escapeHtml(data.next_year_auditor || '')}" placeholder="차년도 배정 예정자">
+              <label>노미 심사원</label>
+              <input type="text" id="f-next_year_auditor" value="${escapeHtml(data.next_year_auditor || '')}" placeholder="노미 심사원">
             </div>
             
             <div class="form-field full">
@@ -2742,8 +2742,8 @@ function flattenAudit(a) {
     '비용(통화)': a.cost ? a.cost.currency : '',
     '입금일': a.payment_date || '',
     '입금상태': a.payment_status || '',
-    '올해 심사원': a.this_year_auditor || '',
-    '차년도 심사원': a.next_year_auditor || '',
+    '현장 심사원': a.this_year_auditor || '',
+    '노미 심사원': a.next_year_auditor || '',
     '영업담당자': a.sales_person || '',
     '상태': a.status || '',
     '비고': a.notes || ''
@@ -2923,8 +2923,8 @@ function parseAuditRow(r, certCategory) {
     cost: (amount !== '' && amount !== undefined && amount !== null) ? { amount: parseFloat(amount), currency } : { amount: null, currency },
     payment_date: r['입금일'] || null,
     payment_status: r['입금상태'] || '미입금',
-    this_year_auditor: r['올해 심사원'] || '',
-    next_year_auditor: r['차년도 심사원'] || '',
+    this_year_auditor: r['현장 심사원'] || '',
+    next_year_auditor: r['노미 심사원'] || '',
     sales_person: r['영업담당자'] || '',
     status: r['상태'] || '예정',
     notes: r['비고'] || ''

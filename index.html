@@ -252,6 +252,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .inline-cost-currency { max-width: 60px; }
   .inline-text { min-width: 110px; max-width: 160px; width: 100%; }
   .inline-month { max-width: 70px; }
+
+  /* ---------- Row drag handle ---------- */
+  .drag-handle {
+    cursor: grab;
+    color: #9CA3AF;
+    user-select: none;
+    text-align: center;
+    width: 22px;
+    padding: 0 !important;
+  }
+  .drag-handle:hover { color: #2563EB; background: #EFF6FF; }
+  tr.dragging { opacity: 0.4; }
+  tr.drag-over-top td { box-shadow: inset 0 2px 0 #2563EB; }
+  tr.drag-over-bottom td { box-shadow: inset 0 -2px 0 #2563EB; }
   .prev-stack { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
   .prev-stack .inline-cost-amount { max-width: 80px; }
   .prev-stack .inline-edit { font-size: 11px; }
@@ -1638,11 +1652,10 @@ function getFilteredAudits(certType) {
     }
     return true;
   }).sort((a, b) => {
-    // sort by month, then company
-    const am = a.audit_month || 99;
-    const bm = b.audit_month || 99;
-    if (am !== bm) return am - bm;
-    return (a.company || '').localeCompare(b.company || '', 'ko');
+    // 사용자가 설정한 순서(sort_order)를 우선, 없으면 입력 순서(id)
+    const ao = (a.sort_order != null) ? a.sort_order : (a.id || 0);
+    const bo = (b.sort_order != null) ? b.sort_order : (b.id || 0);
+    return ao - bo;
   });
 }
 
@@ -1671,6 +1684,7 @@ function renderISO13485() {
   let html = `
     <thead>
       <tr>
+        <th class="drag-handle"></th>
         <th class="col-company">업체명</th>
         <th>심사유형</th>
         <th class="col-narrow">월</th>
@@ -1691,7 +1705,7 @@ function renderISO13485() {
   `;
 
   if (audits.length === 0) {
-    html += `<tr><td colspan="14"><div class="empty">
+    html += `<tr><td colspan="15"><div class="empty">
       <div class="empty-icon">📋</div>
       <div class="empty-title">${state.globalYear}년 ISO 13485 심사 데이터가 없습니다</div>
       <div class="empty-desc">우측 상단의 <b>새 심사 추가</b> 버튼으로 입력하거나, 연도를 변경해 보세요.</div>
@@ -1701,7 +1715,11 @@ function renderISO13485() {
       const prev = findPrevYearAudit('13485', a.company, a.year);
       const next = findNextYearAudit('13485', a.company, a.year);
       html += `
-        <tr>
+        <tr draggable="true" data-id="${a.id}" data-cat="13485"
+          ondragstart="onRowDragStart(event)" ondragover="onRowDragOver(event)"
+          ondragleave="onRowDragLeave(event)" ondrop="onRowDrop(event)"
+          ondragend="onRowDragEnd(event)">
+          <td class="drag-handle" title="드래그해서 순서 이동">≡</td>
           <td class="col-company"><div class="truncate" title="${escapeHtml(a.company)}">${escapeHtml(a.company)}</div></td>
           <td>${inlineAuditTypeSelect('13485', a.id, a.audit_type)}</td>
           <td class="col-narrow">${inlineMonthSelect('13485', a.id, a.audit_month)}</td>
@@ -1739,6 +1757,7 @@ function renderCEMDR() {
   let html = `
     <thead>
       <tr>
+        <th class="drag-handle"></th>
         <th class="col-company">업체명</th>
         <th>인증종류</th>
         <th>제품</th>
@@ -1758,9 +1777,9 @@ function renderCEMDR() {
     </thead>
     <tbody>
   `;
-  
+
   if (audits.length === 0) {
-    html += `<tr><td colspan="15"><div class="empty">
+    html += `<tr><td colspan="16"><div class="empty">
       <div class="empty-icon">🏥</div>
       <div class="empty-title">${state.globalYear}년 CE/MDR 데이터가 없습니다</div>
       <div class="empty-desc">우측 상단의 <b>새 심사 추가</b> 버튼으로 입력하거나, 연도를 변경해 보세요.</div>
@@ -1770,7 +1789,11 @@ function renderCEMDR() {
       const prev = findPrevYearAudit('cemdr', a.company, a.year);
       const next = findNextYearAudit('cemdr', a.company, a.year);
       html += `
-        <tr>
+        <tr draggable="true" data-id="${a.id}" data-cat="cemdr"
+          ondragstart="onRowDragStart(event)" ondragover="onRowDragOver(event)"
+          ondragleave="onRowDragLeave(event)" ondrop="onRowDrop(event)"
+          ondragend="onRowDragEnd(event)">
+          <td class="drag-handle" title="드래그해서 순서 이동">≡</td>
           <td class="col-company"><div class="truncate" title="${escapeHtml(a.company)}">${escapeHtml(a.company)}</div></td>
           <td>${certBadge(a.cert_type)}</td>
           <td><div class="truncate" title="${escapeHtml(a.product || '')}">${escapeHtml((a.product || '').split('\n')[0])}</div></td>
@@ -1955,6 +1978,7 @@ function renderMDD() {
   let html = `
     <thead>
       <tr>
+        <th class="drag-handle"></th>
         <th class="col-company">업체명</th>
         <th>제품</th>
         <th>등급</th>
@@ -1974,7 +1998,7 @@ function renderMDD() {
     </thead>
     <tbody>`;
   if (audits.length === 0) {
-    html += `<tr><td colspan="15"><div class="empty">
+    html += `<tr><td colspan="16"><div class="empty">
       <div class="empty-icon">🩺</div>
       <div class="empty-title">${state.globalYear}년 MDD 데이터가 없습니다</div>
       <div class="empty-desc">우측 상단의 <b>새 심사 추가</b> 버튼으로 입력하거나, 연도를 변경해 보세요.</div>
@@ -1982,7 +2006,11 @@ function renderMDD() {
   } else {
     audits.forEach(a => {
       html += `
-        <tr>
+        <tr draggable="true" data-id="${a.id}" data-cat="mdd"
+          ondragstart="onRowDragStart(event)" ondragover="onRowDragOver(event)"
+          ondragleave="onRowDragLeave(event)" ondrop="onRowDrop(event)"
+          ondragend="onRowDragEnd(event)">
+          <td class="drag-handle" title="드래그해서 순서 이동">≡</td>
           <td class="col-company"><div class="truncate" title="${escapeHtml(a.company)}">${escapeHtml(a.company)}</div></td>
           <td><div class="truncate" title="${escapeHtml(a.product || '')}">${escapeHtml((a.product || '').split('\n')[0])}</div></td>
           <td>${fmtText(a.grade)}</td>
@@ -2518,6 +2546,78 @@ async function updateAuditCost(certCategory, id, amount, currency) {
   const parsed = (amount === '' || amount === null) ? null : parseFloat(amount);
   item.cost = { amount: isNaN(parsed) ? null : parsed, currency: currency || 'KRW' };
   await dbPut(store, item);
+  await loadState();
+  renderAll();
+}
+
+/* =================================================================
+   ROW DRAG & DROP REORDER
+   ================================================================= */
+let dragSourceId = null;
+let dragSourceCat = null;
+
+function onRowDragStart(e) {
+  const tr = e.currentTarget;
+  dragSourceId = parseInt(tr.dataset.id);
+  dragSourceCat = tr.dataset.cat;
+  tr.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', String(dragSourceId)); } catch (err) {}
+}
+function onRowDragOver(e) {
+  e.preventDefault();
+  const tr = e.currentTarget;
+  if (!tr.dataset.id || tr.classList.contains('dragging')) return;
+  const rect = tr.getBoundingClientRect();
+  const below = (e.clientY - rect.top) > rect.height / 2;
+  tr.classList.toggle('drag-over-top', !below);
+  tr.classList.toggle('drag-over-bottom', below);
+  e.dataTransfer.dropEffect = 'move';
+}
+function onRowDragLeave(e) {
+  const tr = e.currentTarget;
+  tr.classList.remove('drag-over-top', 'drag-over-bottom');
+}
+function onRowDragEnd(e) {
+  document.querySelectorAll('tr.dragging, tr.drag-over-top, tr.drag-over-bottom')
+    .forEach(t => t.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom'));
+}
+async function onRowDrop(e) {
+  e.preventDefault();
+  const tr = e.currentTarget;
+  const targetId = parseInt(tr.dataset.id);
+  const cat = tr.dataset.cat;
+  const rect = tr.getBoundingClientRect();
+  const below = (e.clientY - rect.top) > rect.height / 2;
+  tr.classList.remove('drag-over-top', 'drag-over-bottom');
+  if (!dragSourceId || dragSourceCat !== cat || dragSourceId === targetId) return;
+  await reorderRow(cat, dragSourceId, targetId, below);
+  dragSourceId = null; dragSourceCat = null;
+}
+
+async function reorderRow(certCategory, sourceId, targetId, below) {
+  // 현재 뷰의 정렬된 순서를 가져와 sourceId를 빼고 targetId 위/아래에 삽입
+  const filtered = getFilteredAudits(certCategory);
+  const ids = filtered.map(a => a.id);
+  const fromIdx = ids.indexOf(sourceId);
+  const toIdx = ids.indexOf(targetId);
+  if (fromIdx < 0 || toIdx < 0) return;
+  ids.splice(fromIdx, 1);
+  const insertIdx = ids.indexOf(targetId) + (below ? 1 : 0);
+  ids.splice(insertIdx, 0, sourceId);
+
+  // 새 순서대로 sort_order를 0,1,2…로 갱신하고 DB에 저장
+  const store = certCategory === '13485' ? 'audits_13485' : 'audits_cemdr';
+  const list = await dbGetAll(store);
+  const map = new Map(list.map(a => [a.id, a]));
+  for (let i = 0; i < ids.length; i++) {
+    const item = map.get(ids[i]);
+    if (!item) continue;
+    if (item.sort_order !== i) {
+      item.sort_order = i;
+      await dbPut(store, item);
+    }
+  }
   await loadState();
   renderAll();
 }
